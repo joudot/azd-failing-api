@@ -6,11 +6,15 @@ namespace SimpleTodo.Api;
 [Route("/lists")]
 public class ListsController : ControllerBase
 {
+    // This TelemetryClient instance can be used to track additional telemetry through the TrackXXX() API.
+    // private readonly TelemetryClient _telemetryClient;
     private readonly ListsRepository _repository;
+    private readonly ILogger _logger;
 
-    public ListsController(ListsRepository repository)
+    public ListsController(ListsRepository repository, ILogger<ListsController> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -30,6 +34,11 @@ public class ListsController : ControllerBase
         };
 
         await _repository.AddListAsync(todoList);
+
+        if(list.name.Contains("FAIL", StringComparison.InvariantCultureIgnoreCase))
+        {
+            throw new IntendedException("List created with FAIL in name");
+        }
 
         return CreatedAtAction(nameof(GetList), new { list_id = todoList.Id }, todoList);
     }
@@ -110,6 +119,10 @@ public class ListsController : ControllerBase
 
         await _repository.AddListItemAsync(newItem);
 
+        if(newItem.Name.Contains("FAIL", StringComparison.InvariantCultureIgnoreCase))
+        {
+            throw new IntendedException("List created with FAIL in name");
+        }
         return CreatedAtAction(nameof(GetListItem), new { list_id = list_id, item_id = newItem.Id }, newItem);
     }
 
