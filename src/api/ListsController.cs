@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
 
 namespace SimpleTodo.Api;
 
@@ -10,11 +12,14 @@ public class ListsController : ControllerBase
     // private readonly TelemetryClient _telemetryClient;
     private readonly ListsRepository _repository;
     private readonly ILogger _logger;
+    private TelemetryClient _telemetryClient;
 
-    public ListsController(ListsRepository repository, ILogger<ListsController> logger)
+    public ListsController(ListsRepository repository, ILogger<ListsController> logger, TelemetryClient telemetryClient)
     {
         _repository = repository;
         _logger = logger;
+        // If null, try the followinf sample: https://github.com/Azure-Samples/application-insights-aspnet-sample-opentelemetry/blob/master/src/Sample.MainApi/Controllers/MainController.cs
+        _telemetryClient = telemetryClient;
     }
 
     [HttpGet]
@@ -35,11 +40,26 @@ public class ListsController : ControllerBase
 
         await _repository.AddListAsync(todoList);
 
-        if(list.name.Contains("FAIL", StringComparison.InvariantCultureIgnoreCase))
+        // Establish an operation context and associated telemetry item:
+        using (var operation = _telemetryClient.StartOperation<RequestTelemetry>("testListName"))
         {
-            throw new IntendedException("List created with FAIL in name");
-        }
+            if(list.name.Contains("FAIL", StringComparison.InvariantCultureIgnoreCase))
+            {
+                _telemetryClient.TrackEvent("ListCreationFailure");
+                int cpt = 0;
+                while (cpt++ < 10)
+                {
+                    var t = Task.Run(async delegate
+                            {
+                                await Task.Delay(TimeSpan.FromMilliseconds(250));
+                                return;
+                            });
+                    t.Wait();                }
 
+                _telemetryClient.StopOperation(operation);
+                throw new IntendedException("List created with FAIL in name");
+            }
+        }
         return CreatedAtAction(nameof(GetList), new { list_id = todoList.Id }, todoList);
     }
 
